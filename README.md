@@ -2,13 +2,13 @@
 
 ## Data Workflow
 
--Objectie
--Import
--Preprocess
--Postprocess
--Export
--Plot
--Report
+-   Objective
+-   Import
+-   Preprocess
+-   Postprocess
+-   Export
+-   Plot
+-   Report
 
 ## Data Source
 
@@ -19,7 +19,7 @@ https://www.kaggle.com/datasets/sahirmaharajj/electric-vehicle-population
 
 ## Common Analysis
 
-Descriptive analysis: past
-Diagnostic analysis: why
-Predictive analysis: future
-Prescriptive analysis: plan
+-   Descriptive analysis: past
+-   Diagnostic analysis: why
+-   Predictive analysis: future
+-   Prescriptive analysis: plan
