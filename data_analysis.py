@@ -1,80 +1,112 @@
+import os.path
 import pandas as pd
-
-james_bond_data = pd.read_csv("james_bond_data.csv").convert_dtypes()
-
-new_column_names = {
-    "Release": "release_date",
-    "Movie": "movie_title",
-    "Bond": "bond_actor",
-    "Bond_Car_MFG": "car_manufacturer",
-    "US_Gross": "income_usa",
-    "World_Gross": "income_world",
-    "Budget ($ 000s)": "movie_budget",
-    "Film_Length": "film_length",
-    "Avg_User_IMDB": "imdb",
-    "Avg_User_Rtn_Tom": "rotten_tomatoes",
-    "Martinis": "martinis_consumed",
-    "Kills_Bond": "bond_kills",
-}
-
-data = james_bond_data.rename(columns=new_column_names)
-
-data = (
-    james_bond_data.rename(columns=new_column_names)
-    .combine_first(
-        pd.DataFrame({"imdb": {10: 7.1}, "rotten_tomatoes": {10: 6.8}})
-    )
-    .assign(
-        income_usa=lambda data: (
-            data["income_usa"]
-            .replace("[$,]", "", regex=True)
-            .astype("Float64")
-        ),
-        income_world=lambda data: (
-            data["income_world"]
-            .replace("[$,]", "", regex=True)
-            .astype("Float64")
-        ),
-        movie_budget=lambda data: (
-            data["movie_budget"]
-            .replace("[$,]", "", regex=True)
-            .astype("Float64")
-            * 1000
-        ),
-        film_length=lambda data: (
-            data["film_length"]
-            .str.removesuffix("mins")
-            .astype("Int64")
-            .replace(1200, 120)
-        ),
-        release_date=lambda data: pd.to_datetime(
-            data["release_date"], format="%B, %Y"
-        ),
-        release_year=lambda data: data["release_date"].dt.year.astype("Int64"),
-        bond_actor=lambda data: (
-            data["bond_actor"]
-            .str.replace("Shawn", "Sean")
-            .str.replace("MOORE", "Moore")
-        ),
-        car_manufacturer=lambda data: data["car_manufacturer"].str.replace(
-            "Astin", "Aston"
-        ),
-        martinis_consumed=lambda data: data["martinis_consumed"].replace(
-            -6, 6
-        ),
-    )
-    .drop_duplicates(ignore_index=True)
-)
-
-data.to_csv("james_bond_data_cleansed.csv", index=False)
-
-# Performing a Regression Analysis
-from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 
-x = data.loc[:, ["imdb"]]
-y = data.loc[:, "rotten_tomatoes"]
+# Check if cleansed file already exists
+path = "./ev_dataset_washington_cleansed.parquet"
+
+if not os.path.isfile(path):
+    # Import csv as dataframe
+    df = pd.read_csv("ev_dataset_washington.csv").convert_dtypes()
+
+    # Update column names
+    new_column_names = {
+        "VIN (1-10)": "vin",
+        "County": "county",
+        "City": "city",
+        "State": "state",
+        "Postal Code": "postal_code",
+        "Model Year": "year",
+        "Make": "make",
+        "Model": "model",
+        "Electric Vehicle Type": "vehicle_type",
+        "Electric Range": "range",
+        "Base MSRP": "base_msrp",
+        "DOL Vehicle ID": "vehicle_id",
+        "Electric Utility": "electric_utility",
+    }
+    df = df.rename(columns=new_column_names)
+
+    # Remove rows with NaNs
+    remove_index = df.loc[df.isna().any(axis="columns")].index
+    df = df.drop(remove_index)
+
+    # Clean up certain columns
+    df = df.assign(
+        electric_utility=lambda df: (
+            df["electric_utility"].str.removesuffix(" - (WA)")
+        ),
+        model=lambda df: (df["model"].str.capitalize()),
+    )
+    df = df.drop_duplicates(ignore_index=True)
+
+    # Verify data
+    df.info()
+    df["make"].value_counts()
+    df["base_msrp"].describe()
+    df.loc[df.duplicated(keep=False)]
+
+    # Export to parquet format
+    df.to_parquet("ev_dataset_washington_cleansed.parquet", index=False)
+else:
+    # Import csv as dataframe
+    df = pd.read_parquet("ev_dataset_washington_cleansed.parquet")
+
+# Plot
+fig, ax = plt.subplots()
+ax.scatter(df["make"], df["range"])
+ax.set_title("Make vs Electric Range")
+ax.set_xlabel("Make")
+ax.set_ylabel("Electric Range")
+ax.tick_params(axis="x", labelrotation=90)
+# fig.show()
+
+fig, ax = plt.subplots()
+ax.hist(df["make"])
+ax.set_title("Histogram of Make")
+ax.set_xlabel("Make")
+ax.set_ylabel("Count")
+ax.tick_params(axis="x", labelrotation=90)
+# fig.show()
+
+fig, ax = plt.subplots()
+ax.hist(df["range"])
+ax.set_title("Histogram of Electric Range")
+ax.set_xlabel("Electric Range")
+ax.set_ylabel("Count")
+ax.tick_params(axis="x", labelrotation=90)
+# fig.show()
+
+fig, ax = plt.subplots()
+df_pie = df["vehicle_type"].value_counts()
+labels = df_pie.index
+values = df_pie.values
+ax.pie(values, labels=labels, autopct="%1.1f%%")
+ax.set_title("Pie Chart of Vehicle Type")
+
+# Determine common statistics
+df["range"].agg(["min", "max", "mean", "std"])
+
+# Regression analysis
+df_regress = df[["base_msrp", "range", "vehicle_type"]]
+
+# Remove rows
+remove_index = df_regress.loc[
+    (df_regress.vehicle_type == "Plug-in Hybrid Electric Vehicle (PHEV)")
+].index
+df_regress = df_regress.drop(remove_index)
+
+remove_index = df_regress.loc[(df_regress.range == 0)].index
+df_regress = df_regress.drop(remove_index)
+
+remove_index = df_regress.loc[
+    (df_regress.base_msrp == df_regress.base_msrp.max()) | (df_regress.base_msrp == 0)
+].index
+df_regress = df_regress.drop(remove_index)
+
+x = df_regress.loc[:, ["base_msrp"]]
+y = df_regress.loc[:, "range"]
 
 model = LinearRegression()
 model.fit(x, y)
@@ -86,30 +118,11 @@ y_pred = model.predict(x)
 fig, ax = plt.subplots()
 ax.scatter(x, y)
 ax.plot(x, y_pred, color="red")
-ax.text(7.25, 5.5, r_squared, fontsize=10)
-ax.text(7.25, 7, best_fit, fontsize=10)
-ax.set_title("Scatter Plot of Ratings")
-ax.set_xlabel("Average IMDb Rating")
-ax.set_ylabel("Average Rotten Tomatoes Rating")
+# ax.text(7.25, 5.5, r_squared, fontsize=10)
+# ax.text(7.25, 7, best_fit, fontsize=10)
+ax.set_title("MSRP vs Electric Range")
+ax.set_xlabel("Base MSRP")
+ax.set_ylabel("Electric Range")
 # fig.show()
 
-# Investigating a Statistical Distribution
-fig, ax = plt.subplots()
-length = data["film_length"].value_counts(bins=7).sort_index()
-length.plot.bar(
-    ax=ax,
-    title="Film Length Distribution",
-    xlabel="Time Range (mins)",
-    ylabel="Count",
-)
-# fig.show()
-
-data["film_length"].agg(["min", "max", "mean", "std"])
-
-# Finding No Relationship
-fig, ax = plt.subplots()
-ax.scatter(data["imdb"], data["bond_kills"])
-ax.set_title("Scatter Plot of Kills vs Ratings")
-ax.set_xlabel("Average IMDb Rating")
-ax.set_ylabel("Kills by Bond")
-# fig.show()
+plt.show(block=True)
