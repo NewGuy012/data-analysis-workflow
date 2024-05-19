@@ -2,12 +2,12 @@
 
 ## Python Packages Used
 
-    - Numpy
-    - Scipy
-    - Pandas
-    - Matplotlib
-    - Scikit-learn
-    - Jupyter
+-   Numpy
+-   Scipy
+-   Pandas
+-   Matplotlib
+-   Scikit-learn
+-   Jupyter
 
 ## Data Workflow
 
